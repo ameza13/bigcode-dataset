@@ -8,9 +8,12 @@ import argparse
 
 from datasets import load_dataset
 
-from .benchmark_data import FILTER_OUT
-from .utils.dataset_sharding import shard_dataset
-from .utils.utils import add_dict
+import datasets
+import pandas as pd
+
+from benchmark_data import FILTER_OUT
+from utils.dataset_sharding import shard_dataset
+from utils.utils import add_dict
 
 
 SHARD_SIZE = 1000 << 20  # 1GB
@@ -79,13 +82,13 @@ def find_substrings(data, filter_out, return_matched=False):
     Return True, None if the file should be included in the dataset.
     Otherwise return False and some metadata about the file excluded
     """
-    content = data['content'].lower()
+    content = data['text'].lower() # Note: data is the merged dataset (input + resonse) -> 'text' column to test
     # For each substring, try to find it in the file (case insensitive)
     for benchmark, substrings in filter_out.items():
         for substring in substrings:
             if substring.lower() in content:
                 if return_matched:
-                    return False, benchmark_name_to_filter_reason(benchmark), substring
+                    return False, benchmark_name_to_filter_reason(benchmark), substring # Note: Includes the substring that matched
                 else:
                     return False, benchmark_name_to_filter_reason(benchmark)
 
@@ -135,45 +138,51 @@ class SubstringFilterer(object):
             tmp_meta_dir = None,
             data_dir = None
     ) -> None:
-        self.output_dir = output_dir
-        self.split_languages = split_languages
-        self.cache_retrieval_key = cache_retrieval_key
-        self.tmp_meta_dir = tmp_meta_dir if tmp_meta_dir is not None else f"{output_dir}/tmp/meta"
-        self.data_dir = data_dir if data_dir is not None else f"{output_dir}/data"
+        self.output_dir = output_dir #keep
+        self.split_languages = split_languages #False
+        self.cache_retrieval_key = cache_retrieval_key # No need
+        self.tmp_meta_dir = tmp_meta_dir if tmp_meta_dir is not None else f"{output_dir}/tmp/meta" #Use default
+        self.data_dir = data_dir if data_dir is not None else f"{output_dir}/data" # Use default
         os.makedirs(self.tmp_meta_dir, exist_ok=True)
-        os.makedirs(self.data_dir, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True) 
         # Save benchmark data
-        self.excluded_data_cache = os.path.join(self.output_dir, "excluded-data.json")
-        self.benchmarks_cache = os.path.join(output_dir, "benchmarks.json")
-        dump_benchmarks(self.benchmarks_cache)
+        self.excluded_data_cache = os.path.join(self.output_dir, "excluded-data.json") # No need
+        self.benchmarks_cache = os.path.join(output_dir, "benchmarks.json") # No need
+        dump_benchmarks(self.benchmarks_cache) # These loads all the benchmarks, the function returns a list!
 
-        if cached_decontamination_dir is not None:
-            # Load cache
-            self.filter_out, self.exclude_data = update_benchmark_dict(
-                FILTER_OUT,
-                os.path.join(cached_decontamination_dir, "benchmarks.json"),
-                os.path.join(cached_decontamination_dir, "excluded-data.json"),
-            )
-            # All hashes should be unique
-            hash_list = [data_sample["data"][self.cache_retrieval_key] for data_sample in self.exclude_data]
-            assert len(hash_list) == len(set(hash_list))
-            # dict: retrieval-key (hash/content) -> data-sample
-            self.exclude_data_index = {data_sample["data"][self.cache_retrieval_key]: data_sample for data_sample in self.exclude_data}
-            self.use_cached_decontamination = True
-        else:
-            self.filter_out = FILTER_OUT
-            self.exclude_data = None
-            self.exclude_data_index = {}
-            self.use_cached_decontamination = False
+        # Note: We probably do not need cached_decontamination_dir, so let's use cached_decontamination_dir = None
+        # if cached_decontamination_dir is not None:
+        #     # Load cache
+        #     self.filter_out, self.exclude_data = update_benchmark_dict(
+        #         FILTER_OUT,
+        #         os.path.join(cached_decontamination_dir, "benchmarks.json"),
+        #         os.path.join(cached_decontamination_dir, "excluded-data.json"),
+        #     )
+        #     # All hashes should be unique
+        #     hash_list = [data_sample["data"][self.cache_retrieval_key] for data_sample in self.exclude_data]
+        #     assert len(hash_list) == len(set(hash_list))
+        #     # dict: retrieval-key (hash/content) -> data-sample
+        #     self.exclude_data_index = {data_sample["data"][self.cache_retrieval_key]: data_sample for data_sample in self.exclude_data}
+        #     self.use_cached_decontamination = True
+        # else:
+        #     self.filter_out = FILTER_OUT
+        #     self.exclude_data = None
+        #     self.exclude_data_index = {}
+        #     self.use_cached_decontamination = False
+        self.filter_out = FILTER_OUT
+        self.exclude_data = None
+        self.exclude_data_index = {}
+        self.use_cached_decontamination = False
     
     def _filter_file(self, sample):
         should_include, filter_reason, matched_substring = True, None, None
-        if self.use_cached_decontamination:
-            # According to cache, this data sample should be excluded
-            if sample[self.cache_retrieval_key] in self.exclude_data_index:
-                should_include = False
-                filter_reason = self.exclude_data_index[sample[self.cache_retrieval_key]]["filter_reason"]
-                matched_substring = self.exclude_data_index[sample[self.cache_retrieval_key]]["matched_substring"]
+        # Note: we do not need use_cached_decontamination
+        # if self.use_cached_decontamination:
+        #     # According to cache, this data sample should be excluded
+        #     if sample[self.cache_retrieval_key] in self.exclude_data_index:
+        #         should_include = False
+        #         filter_reason = self.exclude_data_index[sample[self.cache_retrieval_key]]["filter_reason"]
+        #         matched_substring = self.exclude_data_index[sample[self.cache_retrieval_key]]["matched_substring"]
         # If sample has passed the cache, check the other substrings
         if should_include:
             should_include, filter_reason, matched_substring = find_substrings(sample, self.filter_out, return_matched=True)
@@ -185,28 +194,33 @@ class SubstringFilterer(object):
         excluded_data = []
         features = batch.keys()
         res = {k: [] for k in features}
+        print(f"res:{res}") # TEST
+
         for sample in zip(*[batch[k] for k in features]):
             sample = {k: v for k, v in zip(features, sample)}
+            print(f"sample: {sample}") # TEST
+
             should_include, filter_reason, matched_substring = self._filter_file(sample)
             if not should_include:
-                meta.update(sample[LANGUAGE_COL], filter_reason)
-                excluded_data.append({
+                # meta.update(sample[LANGUAGE_COL], filter_reason) # Documents the reason to filter out code in a given language
+                excluded_data.append({ # Saves excluded data when it does not pass filter
                     "data": sample,
                     "filter_reason": filter_reason,
                     "matched_substring": matched_substring
                 })
             else:
                 # Add to output
-                for k in features:
+                for k in features: # Adds good data
                     res[k].append(sample[k])
 
         # Record Meta
-        with open(os.path.join(self.tmp_meta_dir, f"{idx[0]}-{idx[-1]}-meta.json"), "w") as f:
-            json.dump(meta.meta_dict, f)
+        # with open(os.path.join(self.tmp_meta_dir, f"{idx[0]}-{idx[-1]}-meta.json"), "w") as f:
+        #     json.dump(meta.meta_dict, f)
         with open(os.path.join(self.tmp_meta_dir, f"{idx[0]}-{idx[-1]}-excluded-data.json"), "w") as f:
             json.dump(excluded_data, f, indent=4)
         return res
     
+    # Applys self._filter method to all dataset instances!
     def filter_dataset(self, ds, num_proc, batch_size):
         filtered = ds.map(
             self._filter,
@@ -302,10 +316,19 @@ def arguments():
     )
     return parser.parse_args()
 
+# Seed dataset is a jsonl file
+def load_ds(file_path: str):
+    instances = []
+    with open(file_path) as f:
+        for line in f:
+            instances.append(json.loads(line))   
+    return instances
+
 
 def main():
     args = arguments()
 
+    # TO DO: Remove the use of benchmark data from here, we will use the merged dataset.
     filterer = SubstringFilterer(
         output_dir=args.output_dir,
         cached_decontamination_dir=args.cached_decontamination_dir,
@@ -313,12 +336,26 @@ def main():
         cache_retrieval_key=args.cache_retrieval_key
     )
 
-    ds = load_dataset(
-        args.dataset_name, split="train", use_auth_token=True,
-        # chunksize=40 << 20
-    )
+    # These should load the json file
+    ds_list = load_ds("../data/mbpp/mbpp.jsonl")
+    df = pd.DataFrame.from_dict(ds_list) 
+    # Convert back to HF Dataset
+    print("Recreate ds['train']")
+    tds = datasets.Dataset.from_pandas(df)
+    ds = datasets.DatasetDict()
+    ds['train'] = tds
+    print(ds.items())
+    print(ds['train'][0])
+    total_rows = len(ds['train'])
+    print(f"Total rows: {total_rows}")   
 
-    filterer.run(ds, args.num_proc, args.batch_size)
+    # OLD
+    # ds = load_dataset(
+    #     args.dataset_name, split="train", use_auth_token=True, # Input
+    #     # chunksize=40 << 20
+    # )
+
+    filterer.run(ds['train'], args.num_proc, args.batch_size)
 
 
 if __name__ == "__main__":

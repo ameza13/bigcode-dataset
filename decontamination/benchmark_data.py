@@ -7,7 +7,7 @@ from pathlib import Path
 from datasets import load_dataset
 
 
-MBPP_PATH = "/data/mbpp/mbpp.jsonl"
+MBPP_PATH = "../data/mbpp/mbpp.jsonl"
 TEST_IDS = list(range(11, 511))
 
 # HumanEval solutions that are considered simple/generic enough to be kept in the training dataset
@@ -40,9 +40,9 @@ def load_mbpp():
         for line in f:
             data.append(json.loads(line))
     
-    data = [sample for sample in data if sample["task_id"] in TEST_IDS]
+    # data = [sample for sample in data if sample["task_id"] in TEST_IDS]
 
-    assert len(data) == 500
+    # assert len(data) == 500
         
     # Checksum / version issues here
     # dataset = load_dataset("mbpp", split="test")
@@ -58,6 +58,9 @@ def mbpp_solutions():
     data = load_mbpp()
     return [sample["code"] for sample in data]
 
+# Ours
+def merged_ds_strings(ds_list:list, column:str):
+    return [sample[column] for sample in ds_list]
 
 def extract_docstring(prompt: str) -> str:
     if '"""' in prompt:
@@ -117,21 +120,25 @@ def load_dataset_column(dataset: str, column: str, split: str, name=None):
 
 
 FILTER_OUT = {
-    "mbpp_docstrings": mbpp_docstrings(),
-    "mbpp_solutions": mbpp_solutions(),
-    "human_eval_docstrings": human_eval_docstrings(),
-    "human_eval_solutions": [
-        s for s in load_dataset_column("openai_humaneval", "canonical_solution", "test")
-        if s not in HUMAN_EVAL_STRINGS_OK
-    ],
-    "apps_docstrings": load_dataset_column("codeparrot/apps", "question", "test"),
+    # BENCHMARKS
+    "mbpp_docstrings": mbpp_docstrings(), # text
+    "mbpp_solutions": mbpp_solutions(), # solutions
+    # "human_eval_docstrings": human_eval_docstrings(),
+    # "human_eval_solutions": [
+    #     s for s in load_dataset_column("openai_humaneval", "canonical_solution", "test")
+    #     if s not in HUMAN_EVAL_STRINGS_OK
+    # ],
+    # "apps_docstrings": load_dataset_column("codeparrot/apps", "question", "test"), 
+
     # 115212 examples to filter-out in apps-solutions, which would take way too much time without any hashing trick
     # "apps_solutions": apps_solutions(),
     # MultiPL-E samples are from HumanEval and MBPP: we are already looking for them
     # "multipl-e_docstrings": multipl_e_docstrings(),
     # There is no solution provided with multipl-e
-    "gsm8k_questions": load_dataset_column("gsm8k", "question", "test", "main"),
-    "ds_1000_prompts": load_ds_1000()
+
+    # "gsm8k_questions": load_dataset_column("gsm8k", "question", "test", "main"),
+
+    # "ds_1000_prompts": load_ds_1000() # Load only one benchmark for testing
 }
 
 
