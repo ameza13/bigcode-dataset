@@ -38,21 +38,41 @@ Returns:
     Fals, None
 """
 def find_substrings(sample, sample_idx, column, filter_out):
-    content = sample[column] # TO DO: update column name
 
-    # For each substring, try to find it in the file (case insensitive)
-    temp_substrings = [] 
-    for benchmark, substrings in filter_out.items():
-        for substring in substrings:
-            temp_substrings.append(substring)
+    if len(column)>0:
+        content = sample[column]
+    else:
+        content = f"{sample['input']} {sample['output']}"
+        # content = f"{sample['text']} {sample['code']}"
 
-    # print(f"substring deleted from benchmark: {temp_substrings[sample_idx]}")
-    del temp_substrings[sample_idx]
+    if len(column)>0:
+        # For each substring, try to find it in the file (case insensitive)
+        temp_substrings = [] 
+        for benchmark, substrings in filter_out.items():
+            for substring in substrings:
+                temp_substrings.append(substring)
 
-    matching_list = []
-    for substring in temp_substrings:
-        if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
-            matching_list.append(substring)
+        # print(f"substring deleted from benchmark: {temp_substrings[sample_idx]}")
+        del temp_substrings[sample_idx]
+
+        matching_list = []
+        for substring in temp_substrings:
+            if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
+                matching_list.append(substring)
+
+    else:
+        # For each substring, try to find it in the file (case insensitive)
+        temp_substrings = [] 
+        for input, output in zip(filter_out["merged_inputs"],filter_out["merged_outputs"]):
+            temp_substrings.append(f"{input} {output}")
+        
+        # # print(f"substring deleted from benchmark: {temp_substrings[sample_idx]}")
+        del temp_substrings[sample_idx]
+
+        matching_list = []
+        for substring in temp_substrings:
+            if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
+                matching_list.append(substring)
 
     is_duplicate = len(matching_list)>0
 
@@ -61,8 +81,7 @@ def find_substrings(sample, sample_idx, column, filter_out):
         print(f"SAMPLE {sample_idx}: {content}") 
         print(f"MATCHING INSTANCES:")  
         for match in matching_list:
-            print(f"{match}")
-
+            print(f"{match}")        
     return is_duplicate, matching_list
 
 # def aggregate_meta(tmp_meta_dir: str):
@@ -98,7 +117,7 @@ class SubstringFilterer(object):
             output_dir: str,
             filter_out: dict,
             ds_name:str,
-            column:str = "input",
+            column:str = "",
             tmp_meta_dir = None,
             data_dir = None
     ) -> None:
@@ -258,6 +277,12 @@ def arguments():
         type=str,
         help="Name to identify output dataset"
     )
+    parser.add_argument(
+        "--column-to-compare",
+        type=str,
+        default="", # It will take input and output
+        help="Column for comparison."
+    )
     return parser.parse_args()
 
 
@@ -270,10 +295,25 @@ def main():
     ds = convert_jsonarray_to_hf_dataset(ds_list=merged_ds_as_list)
 
     # Create benchmark ds
-    FILTER_OUT = {
-        "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input"),
-        # "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="output")
-    }   
+    if len(args.column_to_compare)>0:
+        if 'input' in args.column_to_compare:
+        # if 'text' in args.column_to_compare:
+            FILTER_OUT = {
+                "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input")
+                # "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="text"),
+            }
+        else:
+            FILTER_OUT = {
+            "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="output")
+            # "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="code")
+            }
+    else:
+        FILTER_OUT = {
+            "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input"),
+            "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="output")
+            # "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="text"),
+            # "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="code")
+        }   
 
     # TEST
     total_rows = len(ds['train']) 
@@ -284,7 +324,7 @@ def main():
         output_dir=args.output_dir,
         filter_out=FILTER_OUT,
         ds_name=args.ds_output_name,
-        column = 'input'
+        column = args.column_to_compare
     )
 
     # Run filtering

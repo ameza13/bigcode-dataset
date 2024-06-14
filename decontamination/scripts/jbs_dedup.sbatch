@@ -7,8 +7,8 @@
 
 ##SBATCH --time=01:00:00   # walltime
 #SBATCH -J "ex-dedup"  # job name
-#SBATCH --output=../logs/%x-%j.out
-#SBATCH --error=../logs/%x-%j.err
+#SBATCH --output=.../logs/%x-%j.out
+#SBATCH --error=.../logs/%x-%j.err
 
 # Slurm Variables
 echo "SLURM_JOB_ID: $SLURM_JOB_ID"
@@ -25,16 +25,26 @@ eval "$(conda shell.bash hook)"
 conda activate dedup
 
 # open-platypus
-# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-92a0_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name open-platypus
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-92a0_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name open-platypus --column-to-compare input
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-92a0_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name open-platypus-output --column-to-compare output
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-92a0_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name open-platypus-both
 
 # helpsteer
-# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-1500_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name helpsteer
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-1500_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name helpsteer --column-to-compare input
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-1500_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name helpsteer-output --column-to-compare output
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-1500_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name helpsteer-both
 
 # WebInstructSub
-python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-8533_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name webinstructsub
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-8533_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name webinstructsub --column-to-compare input
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-8533_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name webinstructsub-output --column-to-compare output
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-8533_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name webinstructsub-both
 
 # star-aligned-oss
-# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-9903_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name star-aligned-oss
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-9903_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name star-aligned-oss --column-to-compare input
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-9903_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name star-aligned-oss-output --column-to-compare output
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets/evol-instruct-9903_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name star-aligned-oss-both
 
 # code_instructions_alpaca122k
-# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets//evol-instruct-368d_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name code_instructions_alpaca122k
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets//evol-instruct-368d_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name code_instructions_alpaca122k --column-to-compare input
+# python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets//evol-instruct-368d_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name code_instructions_alpaca122k-output --column-to-compare output
+python $HOME/workspace/bigcode-dataset/decontamination/exact_dedup.py --dataset-path $HOME/workspace/evol-instruct-playground/outputs/merged_datasets//evol-instruct-368d_merged.jsonl --output-dir $HOME/workspace/evol-instruct-playground/outputs/exact_dedup_datasets/ --ds-output-name code_instructions_alpaca122k-both
