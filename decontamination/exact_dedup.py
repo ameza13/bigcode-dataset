@@ -74,14 +74,7 @@ def find_substrings(sample, sample_idx, column, filter_out):
             if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
                 matching_list.append(substring)
 
-    is_duplicate = len(matching_list)>0
-
-    # TEST
-    if is_duplicate:
-        print(f"SAMPLE {sample_idx}: {content}") 
-        print(f"MATCHING INSTANCES:")  
-        for match in matching_list:
-            print(f"{match}")        
+    is_duplicate = len(matching_list)>0       
     return is_duplicate, matching_list
 
 # def aggregate_meta(tmp_meta_dir: str):
@@ -126,10 +119,10 @@ class SubstringFilterer(object):
         self.data_dir = data_dir if data_dir is not None else f"{output_dir}/data"
         os.makedirs(self.tmp_meta_dir, exist_ok=True)
         os.makedirs(self.data_dir, exist_ok=True)
-
+        self.ds_name = ds_name
         # Save benchmark data
         self.excluded_data_cache = os.path.join(self.output_dir, "excluded-data.json")
-        self.benchmarks_cache = os.path.join(output_dir, f"benchmarks-{ds_name}.json") # saves merged dataset, but in different format
+        self.benchmarks_cache = os.path.join(output_dir, f"benchmarks-{self.ds_name}.json") # saves merged dataset, but in different format
         self.filter_out = filter_out
         dump_benchmarks(self.benchmarks_cache, self.filter_out)
         self.column = column
@@ -149,9 +142,9 @@ class SubstringFilterer(object):
     -res: output dictionary, it has the same structure than batch dictionary
     """
     def _find_duplicates(self, batch: dict, idx):
-        meta = Meta()
-        excluded_data = []
+        # meta = Meta()
 
+        excluded_data = []
         duplicates_idx = []
         
         features = batch.keys()
@@ -163,22 +156,31 @@ class SubstringFilterer(object):
             sample = {k: v for k, v in zip(features, sample)}
             is_duplicate, matched_substrings = self._find_duplicate(sample=sample, sample_idx=idx[i],column=self.column)
 
-            # TO DO: Build hashtable of duplicates {idx: [matched_substrings]}
             if is_duplicate: 
+                # TEST
+                # print(f"SAMPLE {idx[i]}: {sample}") 
+                # print(f"MATCHING INSTANCES:")  
+                # for match in matched_substrings:
+                #     print(f"{match}")
+
+                # Track duplicates original idx
                 duplicates_idx.append(idx[i])
+                # Track data to be excluded:
+                duplicate_info = {'duplicate_idx':idx[i], 'matches':matched_substrings}
+                excluded_data.append(duplicate_info)
             else:
-                # Add to output
+                # Add non duplicate to output
                 for k in features:
                     res[k].append(sample[k])
             i+=1
         
         print(f"# of duplicates in batch: {len(duplicates_idx)}")
-        # TO DO: How do we record the duplicates
+
         # Record Meta
         # with open(os.path.join(self.tmp_meta_dir, f"{idx[0]}-{idx[-1]}-meta.json"), "w") as f:
         #     json.dump(meta.meta_dict, f)
-        # with open(os.path.join(self.tmp_meta_dir, f"{idx[0]}-{idx[-1]}-excluded-data.json"), "w") as f:
-        #     json.dump(excluded_data, f, indent=4)
+        with open(os.path.join(self.tmp_meta_dir, f"{idx[0]}-{idx[-1]}-excluded-data.json"), "w") as f:
+            json.dump(excluded_data, f, indent=4)
         return res
 
     def find_duplicates(self, ds, num_proc, batch_size):
@@ -208,16 +210,16 @@ class SubstringFilterer(object):
 
     # Save shards
     def save(self, filtered, num_proc, name):
-        shard_dataset(filtered, SHARD_SIZE, self.data_dir, num_proc=16, name=name)
+        shard_dataset(filtered, SHARD_SIZE, self.data_dir, num_proc=16, name=name) #TO CHECK: num_proc is always 16 for sharding
     
-    def run(self, dataset, num_proc, batch_size, name):
+    def run(self, dataset, num_proc, batch_size):
         filtered = self.find_duplicates(dataset, num_proc, batch_size)
         print("TOTAL ROWS IN DEDUP DATASET: ", len(filtered['train']))
         # print(filtered['train']['input']) #TEST
         # Finalize meta-data
         # self.finalize()
         # Save filtered dataset.
-        self.save(filtered['train'], num_proc, name=name)
+        self.save(filtered['train'], num_proc, name=self.ds_name) 
 
 # Load merged dataset (json array)
 def load_ds(file_path: str):
@@ -302,11 +304,13 @@ def main():
                 "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input")
                 # "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="text"),
             }
-        else:
+        elif 'output' in args.column_to_compare:
             FILTER_OUT = {
             "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="output")
             # "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="code")
             }
+        else:
+            raise Exception("Invalid column option for comparison. Valid options: 'input', 'output', '' (empty option will use 'input' and 'output')")
     else:
         FILTER_OUT = {
             "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input"),
@@ -328,7 +332,7 @@ def main():
     )
 
     # Run filtering
-    filterer.run(ds, args.num_proc, args.batch_size, args.ds_output_name)
+    filterer.run(ds, args.num_proc, args.batch_size)
 
 if __name__ == "__main__":
     main()
