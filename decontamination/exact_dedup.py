@@ -11,6 +11,7 @@ from utils.dataset_sharding import shard_dataset
 
 import datasets
 import pandas as pd
+import time
 
 """
 Examples:
@@ -45,34 +46,27 @@ def find_substrings(sample, sample_idx, column, filter_out):
         content = f"{sample['input']} {sample['output']}"
         # content = f"{sample['text']} {sample['code']}"
 
-    if len(column)>0:
-        # For each substring, try to find it in the file (case insensitive)
-        temp_substrings = [] 
-        for benchmark, substrings in filter_out.items():
-            for substring in substrings:
-                temp_substrings.append(substring)
+    # # For each substring, try to find it in the file (case insensitive)
+    # temp_substrings = [] 
+    # # print(type(filter_out.items())) # TEMP
+    # for benchmark, substrings in filter_out.items():
+    #     for substring in substrings:
+    #         temp_substrings.append(substring)
 
-        # print(f"substring deleted from benchmark: {temp_substrings[sample_idx]}")
-        del temp_substrings[sample_idx]
+    # # print(f"substring deleted from benchmark: {temp_substrings[sample_idx]}")
+    # del temp_substrings[sample_idx]
 
-        matching_list = []
-        for substring in temp_substrings:
-            if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
-                matching_list.append(substring)
-
-    else:
-        # For each substring, try to find it in the file (case insensitive)
-        temp_substrings = [] 
-        for input, output in zip(filter_out["merged_inputs"],filter_out["merged_outputs"]):
-            temp_substrings.append(f"{input} {output}")
-        
-        # # print(f"substring deleted from benchmark: {temp_substrings[sample_idx]}")
-        del temp_substrings[sample_idx]
-
-        matching_list = []
-        for substring in temp_substrings:
-            if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
-                matching_list.append(substring)
+    # matching_list = []
+    # for substring in temp_substrings:
+    #     if substring.lower() in content.lower(): # It cannot be compared to itself because we already removed it from benchmark.
+    #         matching_list.append(substring)
+    ###
+    matching_list = []
+    for benchmark, substrings in filter_out.items():
+        for idx, substring in zip(range(len(substrings)), substrings):
+            if (substring.lower() in content.lower()) and idx != sample_idx: # It cannot be compared to itself.
+                        print(f"valid matching between current idx:{idx} sampe_idx:{sample_idx}") # TEST
+                        matching_list.append(substring)           
 
     is_duplicate = len(matching_list)>0       
     return is_duplicate, matching_list
@@ -93,16 +87,16 @@ def find_substrings(sample, sample_idx, column, filter_out):
 #         res += meta
 #     return res
 
-class Meta:
-    def __init__(self) -> None:
-        self.meta_dict = dict()
+# class Meta:
+#     def __init__(self) -> None:
+#         self.meta_dict = dict()
     
-    def update(self, lang: str, filter_reason: str):
-        if lang not in self.meta_dict:
-            self.meta_dict[lang] = {}
-        if filter_reason not in self.meta_dict[lang]:
-            self.meta_dict[lang][filter_reason] = 0
-        self.meta_dict[lang][filter_reason] += 1
+#     def update(self, lang: str, filter_reason: str):
+#         if lang not in self.meta_dict:
+#             self.meta_dict[lang] = {}
+#         if filter_reason not in self.meta_dict[lang]:
+#             self.meta_dict[lang][filter_reason] = 0
+#         self.meta_dict[lang][filter_reason] += 1
 
 class SubstringFilterer(object):
     def __init__(
@@ -133,14 +127,15 @@ class SubstringFilterer(object):
 
     """
     -batch: a dictionary with a column name as key, and a list of batch values as values associted to the list
-    {'input':['input', 'input', 'inputN']
-    'code':['code1', 'code2', 'codeN']
+    {'input':['input1', 'input2', 'inputN']
+    'output':['output1', 'output2', 'outputN']
     'task_id':[...],
     ...}
     -idx: list of idexes of elements from original data that are part of the batch
     -features: column names
     -res: output dictionary, it has the same structure than batch dictionary
     """
+
     def _find_duplicates(self, batch: dict, idx):
         # meta = Meta()
 
@@ -150,7 +145,16 @@ class SubstringFilterer(object):
         features = batch.keys()
         res = {k: [] for k in features}
             
-        print(f"batch size: {len(idx)}") # TEST
+        # TEST
+        # print(f"batch keys: {features}")
+        # print(f"# of keys in batch: {len(batch.items())}")
+        print(f"Size of list of idxs: {len(idx)}")
+        print(f"idx from {idx[0]} to {idx[len(idx)-1]}")
+        print(f"# of Inputs in batch: {len(batch['input'])}")
+        print(f"# of Outputs in batch: {len(batch['output'])}")
+        # print(f"First Input in batch: {batch['input'][0]}")
+        # print(f"First Output in batch: {batch['output'][0]}")
+        
         i = 0 
         for sample in zip(*[batch[k] for k in features]):
             sample = {k: v for k, v in zip(features, sample)}
@@ -187,9 +191,9 @@ class SubstringFilterer(object):
         filtered = ds.map(
             self._find_duplicates,
             batched=True,
-            batch_size=batch_size,
-            with_indices=True,
-            num_proc=num_proc,
+            batch_size=batch_size, # default batch_size=10,000
+            with_indices=True, # Provide example indices to function. Note that in this case the signature of function should be def function(example, idx[, rank]): ....
+            num_proc=num_proc, # default num_proc=200 / Max number of processes when generating cache. Already cached shards are loaded sequentially.
             load_from_cache_file=False,
         )
         return filtered # Returns filtered DatasetDict
@@ -212,7 +216,7 @@ class SubstringFilterer(object):
     def save(self, filtered, num_proc, name):
         shard_dataset(filtered, SHARD_SIZE, self.data_dir, num_proc=16, name=name) #TO CHECK: num_proc is always 16 for sharding
     
-    def run(self, dataset, num_proc, batch_size):
+    def run(self, dataset, num_proc, batch_size): 
         filtered = self.find_duplicates(dataset, num_proc, batch_size)
         print("TOTAL ROWS IN DEDUP DATASET: ", len(filtered['train']))
         # print(filtered['train']['input']) #TEST
@@ -241,6 +245,9 @@ def convert_jsonarray_to_hf_dataset(ds_list:list):
 def merged_ds_strings(ds_list:list, column:str):
     return [sample[column] for sample in ds_list]
 
+def merged_ds_strings(ds_list:list, c_input:str, c_output:str):      
+    return [f"{sample[c_input]} {sample[c_output]}" for sample in ds_list]
+
 def arguments():
     parser = argparse.ArgumentParser()
     # parser.add_argument(
@@ -264,13 +271,14 @@ def arguments():
     parser.add_argument(
         "--num-proc",
         type=int,
-        default=200,
+        # default=1,
+        default=os.cpu_count(), #96
         help="Number of processes"
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=10000,
+        default=0,
         help="Size of batches passed to Dataset.map"
     )
     parser.add_argument(
@@ -313,8 +321,9 @@ def main():
             raise Exception("Invalid column option for comparison. Valid options: 'input', 'output', '' (empty option will use 'input' and 'output')")
     else:
         FILTER_OUT = {
-            "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input"),
-            "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="output")
+            "merged_instances": merged_ds_strings(ds_list=merged_ds_as_list, c_input="input", c_output="output")
+            # "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="input"),
+            # "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="output")
             # "merged_inputs": merged_ds_strings(ds_list=merged_ds_as_list, column="text"),
             # "merged_outputs": merged_ds_strings(ds_list=merged_ds_as_list, column="code")
         }   
@@ -323,7 +332,6 @@ def main():
     total_rows = len(ds['train']) 
     print(f"TOTAL ROWS IN MERGED DATASET: {total_rows}") 
 
-    # TO DO: Remove the use of benchmark data from here, we will use the merged dataset.
     filterer = SubstringFilterer(
         output_dir=args.output_dir,
         filter_out=FILTER_OUT,
@@ -332,7 +340,11 @@ def main():
     )
 
     # Run filtering
-    filterer.run(ds, args.num_proc, args.batch_size)
+    filterer.run(dataset=ds, num_proc=args.num_proc, batch_size=args.batch_size)
 
 if __name__ == "__main__":
+    start_time = time.time()
     main()
+    final_time = time.time() - start_time
+    print(f'All Computation complete, total run took {final_time:.2f}s')
+
